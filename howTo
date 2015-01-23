@@ -1,0 +1,18 @@
+
+
+/sys/devices/pci0000:00/0000:00:02.0/drm/card0/card0-LVDS-1/intel_backlight/brightness
+…or create a new repository on the command line
+
+echo "# speech_detection" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git remote add origin https://github.com/amitsriv9/speech_detection.git
+git push -u origin master
+
+…or push an existing repository from the command line
+
+git remote add origin https://github.com/amitsriv9/speech_detection.git
+git push -u origin master
+
+
