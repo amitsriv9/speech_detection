@@ -1,0 +1,179 @@
+
+char *cdevice = "hw:0,0";
+int block = 0; 
+int channels = 2;
+int rate = 8000;
+int latency_min = 32;
+int latency_max = 512;
+int buffer_size =0;
+int period_size =0;
+snd_pcm_format_t format = SND_PCM_FORMAT_U8;
+snd_output_t *output = NULL;
+
+int block = 0; // what is this and why
+int main(int argc, char *argv[])
+{
+
+	snd_pcm_t *chandle;
+	char *buffer;
+	int err, latency, morehelp;
+	int ok;
+	snd_timestamp_t  c_tstamp;
+	size_t frames_in, frames_out, in_max;
+	ssize_t r;
+	int effect = 0;
+	morehelp = 0;
+
+
+
+ 	if ((err = snd_pcm_open(&chandle, cdevice, SND_PCM_STREAM_CAPTURE, block ? 0 : SND_PCM_NONBLOCK)) < 0) {
+	    printf("Record open error: %s\n", snd_strerror(err));
+	    return 0;
+	}
+
+
+
+/*  Set params   */
+	 int err, last_bufsize = *bufsize;
+	 snd_pcm_hw_params_t   *c_params;
+	 snd_pcm_hw_params_t   *ct_params;
+	 snd_pcm_sw_params_t   *c_swparams;
+
+	 snd_pcm_hw_params_alloca(&c_params);
+	 snd_pcm_hw_params_alloca(&ct_params);
+	 snd_pcm_sw_params_alloca(&c_swparams);	
+
+	 unsigned int c_time;
+	 unsigned int val;
+
+  while(1){
+	/* setparams(snd_pcm_t *handle, snd_pcm_hw_params_t *params, const char *id) */
+
+	 err = snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+	 if (err < 0) {
+	    printf("Access type not available for %s: %s\n", id, snd_strerror(err));
+	    return err;
+	 }
+
+	 err = snd_pcm_hw_params_set_format(handle, params, format);
+	 if (err < 0) {
+	    printf("Sample format not available for %s: %s\n", id, snd_strerror(err));
+	    return err;
+	 }
+
+	 err = snd_pcm_hw_params_set_channels(handle, params, channels);
+	 if (err < 0) {
+	    printf("Channels count (%i) not available for %s: %s\n", channels, id, snd_strerror(err));
+	    return err;
+	 }
+
+	 rrate = rate;
+	 err = snd_pcm_hw_params_set_rate_near(handle, params, &rrate, 0);
+	 if (err < 0) {
+	    printf("Rate %iHz not available for %s: %s\n", rate, id, snd_strerror(err));
+	    return err;
+	 }
+	
+	/*  setparams_bufsize(phandle, p_params, pt_params, *bufsize, "playback")  */
+
+	snd_pcm_uframes_t periodsize;
+	snd_pcm_hw_params_copy(params, tparams);
+	periodsize = bufsize * 2;
+	err = snd_pcm_hw_params_set_buffer_size_near(handle, params, &periodsize);
+	if (err < 0) {
+	    printf("Unable to set buffer size %li for %s: %s\n", bufsize * 2, id, snd_strerror(err));
+	    return err;
+	}
+
+ 	err = snd_pcm_hw_params_set_period_size_near(handle, params, &periodsize, 0);
+	if (err < 0) {
+	    printf("Unable to set period size %li for %s: %s\n", periodsize, id, snd_strerror(err));
+	    return err;
+	}
+	if (period_size > 0)
+		periodsize = period_size;
+	else
+		periodsize /= 2;
+
+	/*over*/
+
+	snd_pcm_hw_params_get_period_size(c_params, &c_psize, NULL);
+	snd_pcm_hw_params_get_period_time(c_params, &c_time, NULL);
+
+ 	snd_pcm_hw_params_get_buffer_size(c_params, &c_size);
+	if (c_psize * 2 < c_size) {
+		snd_pcm_hw_params_get_periods_min(c_params, &val, NULL);
+		if (val > 2 ) {
+			printf("capture device does not support 2 periods per buffer\n");
+			exit(0);
+		}
+		goto __again;
+	}
+
+	/*setparams_set(phandle, p_params, p_swparams, "playback")*/
+
+	snd_pcm_uframes_t val;
+	err = snd_pcm_hw_params(handle, params);
+	if (err < 0) {
+	   printf("Unable to set hw params for %s: %s\n", id, snd_strerror(err));
+	   return err;
+	}
+
+	err = snd_pcm_sw_params_current(handle, swparams);
+	if (err < 0) {
+	   printf("Unable to determine current swparams for %s: %s\n", id, snd_strerror(err));
+	   return err;
+	}
+
+	err = snd_pcm_sw_params_set_start_threshold(handle, swparams, 0x7fffffff);
+	if (err < 0) {
+	   printf("Unable to set start threshold mode for %s: %s\n", id, snd_strerror(err));
+	   return err;
+	}
+
+ 	err = snd_pcm_sw_params_set_avail_min(handle, swparams, val);
+	if (err < 0) {
+	   printf("Unable to set avail min for %s: %s\n", id, snd_strerror(err));
+ 	   return err;
+	}
+ 	err = snd_pcm_sw_params(handle, swparams);
+	if (err < 0) {
+	   printf("Unable to set sw params for %s: %s\n", id, snd_strerror(err));
+	   return err;
+	}
+
+	/*over*/
+
+	/* writebuf(snd_pcm_t *handle, char *buf, long len, size_t *frames) */
+
+	 long r;
+	while (len > 0) {
+		r = snd_pcm_writei(handle, buf, len);
+		if (r == -EAGAIN)
+		    continue;
+		// printf("write = %li\n", r);
+		if (r < 0)
+		   return r;
+		// showstat(handle, 0);
+		buf += r * 4;
+		len -= r;
+		*frames += r;
+	}
+
+	/*over*/
+
+	if ((err = snd_pcm_start(chandle)) < 0) {
+	    printf("Go error: %s\n", snd_strerror(err));
+	    exit(0);
+	}
+
+ 	gettimestamp(chandle, &c_tstamp);
+ 	snd_pcm_drop(chandle);
+ 	snd_pcm_unlink(chandle);
+ 	snd_pcm_hw_free(chandle);
+
+    } // end of while
+
+ 	snd_pcm_close(chandle);
+	return 0;
+}
